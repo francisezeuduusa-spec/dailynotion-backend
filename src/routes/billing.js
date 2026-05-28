@@ -1,8 +1,12 @@
 const express = require('express');
 const router = express.Router();
-const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const supabase = require('../db/supabase');
 const { requireAuth } = require('../middleware/auth');
+
+// Initialize stripe only if key is available
+const stripe = process.env.STRIPE_SECRET_KEY 
+  ? require('stripe')(process.env.STRIPE_SECRET_KEY) 
+  : null;
 
 const PRICE_MAP = {
   pro_monthly: process.env.STRIPE_PRO_MONTHLY_PRICE_ID,
@@ -139,6 +143,10 @@ router.post('/checkout', requireAuth, async (req, res) => {
     return res.status(400).json({ error: 'Invalid plan for checkout' });
   }
 
+  if (!stripe) {
+    return res.status(503).json({ error: 'Stripe not configured yet' });
+  }
+
   const priceKey = `${plan}_${interval}`;
   const priceId = PRICE_MAP[priceKey];
 
@@ -198,7 +206,11 @@ router.post('/checkout', requireAuth, async (req, res) => {
 // Stripe webhook - handles payment confirmations
 // IMPORTANT: This route needs raw body (see index.js)
 // ─────────────────────────────────────────────
-router.post('/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
+const webhookHandler = async (req, res) => {
+  if (!stripe) {
+    return res.status(503).json({ error: 'Stripe not configured yet' });
+  }
+
   const sig = req.headers['stripe-signature'];
   let event;
 
@@ -298,7 +310,10 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
     console.error('Webhook processing error:', err);
     return res.status(500).json({ error: 'Webhook processing failed' });
   }
-});
+};
+
+// Export webhook separately for raw body handling in index.js
+router.webhook = webhookHandler;
 
 // ─────────────────────────────────────────────
 // GET /api/billing/subscription
@@ -323,6 +338,10 @@ router.get('/subscription', requireAuth, async (req, res) => {
 // Creates a Stripe customer portal session for managing billing
 // ─────────────────────────────────────────────
 router.post('/portal', requireAuth, async (req, res) => {
+  if (!stripe) {
+    return res.status(503).json({ error: 'Stripe not configured yet' });
+  }
+
   try {
     const { data: subscription } = await supabase
       .from('subscriptions')
