@@ -10,12 +10,20 @@ const { requireAuth, guardStatus } = require('../middleware/auth');
 // Returns the Notion OAuth URL for the frontend to redirect to
 // ─────────────────────────────────────────────
 router.get('/auth-url', requireAuth, (req, res) => {
+  const clientId = process.env.NOTION_CLIENT_ID;
+  const redirectUri = process.env.NOTION_REDIRECT_URI;
+  
+  if (!clientId || !redirectUri) {
+    console.error('Missing Notion config:', { clientId: !!clientId, redirectUri: !!redirectUri });
+    return res.status(500).json({ error: 'Notion OAuth not configured. Please contact support.' });
+  }
+  
   const params = new URLSearchParams({
-    client_id: process.env.NOTION_CLIENT_ID,
+    client_id: clientId,
     response_type: 'code',
     owner: 'user',
-    redirect_uri: process.env.NOTION_REDIRECT_URI,
-    state: req.user.id // use user ID as state for verification
+    redirect_uri: redirectUri,
+    state: req.user.id
   });
 
   const authUrl = `https://api.notion.com/v1/oauth/authorize?${params.toString()}`;
