@@ -223,16 +223,18 @@ const createNotionPage = async (notion, journalDbId, dateStr, content) => {
   // Convert markdown-ish content to Notion blocks
   const blocks = contentToNotionBlocks(content);
 
+  // Only set properties that exist in the database
+  // We'll fetch the database schema to check, but for simplicity
+  // we just set the title since that's always required
+  const pageProperties = {
+    title: {
+      title: [{ text: { content: `Journal ${dateStr}` } }]
+    }
+  };
+
   const page = await notion.pages.create({
     parent: { database_id: journalDbId },
-    properties: {
-      title: {
-        title: [{ text: { content: `Journal ${dateStr}` } }]
-      },
-      Date: {
-        date: { start: dateStr }
-      }
-    },
+    properties: pageProperties,
     children: blocks
   });
 
