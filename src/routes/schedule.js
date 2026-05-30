@@ -80,28 +80,30 @@ router.post('/', requireAuth, async (req, res) => {
 
     if (error) throw error;
 
-    // Mark schedule step as complete in onboarding
+    // Mark schedule step as complete — always set schedule_set = true
+    // Then check if ALL steps are done and mark completed_at
     const { data: onboarding } = await supabase
       .from('onboarding_state')
       .select('completed_at, notion_connected, journal_db_selected, tasks_db_selected, template_chosen')
       .eq('user_id', req.user.id)
       .single();
 
-    if (onboarding && !onboarding.completed_at) {
-      const allComplete =
-        onboarding.notion_connected &&
-        onboarding.journal_db_selected &&
-        onboarding.tasks_db_selected &&
-        onboarding.template_chosen;
+    const allComplete = onboarding &&
+      onboarding.notion_connected &&
+      onboarding.journal_db_selected &&
+      onboarding.tasks_db_selected &&
+      onboarding.template_chosen;
 
-      await supabase
-        .from('onboarding_state')
-        .update({
-          schedule_set: true,
-          completed_at: allComplete ? new Date().toISOString() : null
-        })
-        .eq('user_id', req.user.id);
-    }
+    // Always mark schedule_set = true regardless of other steps
+    // Always set completed_at if all steps done — even if it was already set
+    await supabase
+      .from('onboarding_state')
+      .update({
+        schedule_set: true,
+        completed_at: allComplete ? new Date().toISOString() : onboarding?.completed_at || null,
+        updated_at: new Date().toISOString()
+      })
+      .eq('user_id', req.user.id);
 
     return res.json({
       schedule,
