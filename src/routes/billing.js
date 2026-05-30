@@ -33,7 +33,7 @@ router.get('/', (req, res) => {
           'Manual journal generation (Generate Now button)',
           '1 pre-built template',
           'Pull from 1 database (Tasks)',
-          '30-day journal history',
+          '14-day journal history',
           'No scheduling',
           'No email notifications'
         ],
