@@ -44,7 +44,7 @@ router.post(
         return res.status(409).json({ error: 'Email already in use' });
       }
 
-      const password_hash = await bcrypt.hash(password, 12);
+      const password_hash = await bcrypt.hash(password, 10);
 
       // Create user
       const { data: user, error: userError } = await supabase
@@ -287,7 +287,7 @@ router.post('/change-password', requireAuth, async (req, res) => {
       return res.status(401).json({ error: 'Current password is incorrect' });
     }
 
-    const newHash = await bcrypt.hash(newPassword, 12);
+    const newHash = await bcrypt.hash(newPassword, 10);
 
     await supabase
       .from('users')
