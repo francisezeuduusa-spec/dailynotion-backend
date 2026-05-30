@@ -221,15 +221,37 @@ router.post('/onboarding-select', requireAuth, async (req, res) => {
         return res.status(400).json({ error: 'Default template not found' });
       }
 
-      // Save the default as their template
+      // First unset ALL existing defaults for this user to prevent duplicates
       await supabase
         .from('templates')
-        .insert({
-          user_id: req.user.id,
-          name: defaultTemplate.name,
-          body: defaultTemplate.body,
-          is_default: true
-        });
+        .update({ is_default: false })
+        .eq('user_id', req.user.id);
+
+      // Check if this exact template already exists for this user
+      const { data: existing } = await supabase
+        .from('templates')
+        .select('id')
+        .eq('user_id', req.user.id)
+        .eq('name', defaultTemplate.name)
+        .single();
+
+      if (existing) {
+        // Just set it as default instead of inserting a duplicate
+        await supabase
+          .from('templates')
+          .update({ is_default: true })
+          .eq('id', existing.id);
+      } else {
+        // Insert fresh
+        await supabase
+          .from('templates')
+          .insert({
+            user_id: req.user.id,
+            name: defaultTemplate.name,
+            body: defaultTemplate.body,
+            is_default: true
+          });
+      }
     } else if (template_id) {
       await supabase
         .from('templates')

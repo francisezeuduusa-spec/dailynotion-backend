@@ -28,14 +28,19 @@ const generateJournal = async (userId, trigger = 'manual') => {
 
     if (!config) throw new Error('Notion not connected');
 
-    const { data: templateRow } = await supabase
+    // Get the default template — use limit to avoid crash on duplicates
+    // If somehow multiple defaults exist, just take the first one
+    const { data: templateRows } = await supabase
       .from('templates')
       .select('body')
       .eq('user_id', userId)
       .eq('is_default', true)
-      .single();
+      .order('created_at', { ascending: false })
+      .limit(1);
 
-    if (!templateRow) throw new Error('No default template found');
+    const templateRow = templateRows?.[0] || null;
+
+    if (!templateRow) throw new Error('No default template found. Please complete onboarding and select a template.');
 
     const notion = new Client({ auth: config.access_token });
 
