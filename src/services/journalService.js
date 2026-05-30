@@ -127,13 +127,30 @@ const generateJournal = async (userId, trigger = 'manual') => {
 // ─────────────────────────────────────────────
 const fetchTasksToday = async (notion, taskDbId, dateStr) => {
   try {
+    // First get the database schema to find the date property name
+    const db = await notion.databases.retrieve({ database_id: taskDbId });
+    const props = db.properties;
+    
+    // Find a date-type property (Due Date, Date, Due, etc.)
+    const datePropName = Object.keys(props).find(
+      (name) => props[name].type === 'date'
+    );
+
+    const filter = datePropName
+      ? {
+          property: datePropName,
+          date: { equals: dateStr }
+        }
+      : undefined;
+
+    const sort = datePropName
+      ? [{ property: datePropName, direction: 'ascending' }]
+      : undefined;
+
     const response = await notion.databases.query({
       database_id: taskDbId,
-      filter: {
-        property: 'Due Date',
-        date: { equals: dateStr }
-      },
-      sorts: [{ property: 'Due Date', direction: 'ascending' }],
+      ...(filter ? { filter } : {}),
+      ...(sort ? { sorts: sort } : {}),
       page_size: 50
     });
 
