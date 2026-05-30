@@ -34,11 +34,13 @@ router.post('/', requireAuth, async (req, res) => {
     return res.status(400).json({ error: 'generate_time and timezone are required' });
   }
 
-  // Validate time format HH:MM
-  const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/;
+  // Accept HH:MM or HH:MM:SS — normalize to HH:MM
+  const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)(:[0-5]\d)?$/;
   if (!timeRegex.test(generate_time)) {
-    return res.status(400).json({ error: 'Invalid time format. Use HH:MM (e.g., 08:00)' });
+    return res.status(400).json({ error: 'Invalid time format. Use HH:MM (e.g., 09:00)' });
   }
+  // Strip seconds if present so we always work with HH:MM
+  const normalizedTime = generate_time.slice(0, 5);
 
   try {
     // Check plan — free users can't schedule
@@ -56,17 +58,23 @@ router.post('/', requireAuth, async (req, res) => {
       });
     }
 
-    const nextRun = computeNextRun(generate_time, timezone);
+    const nextRun = computeNextRun(normalizedTime, timezone);
+
+    const upsertData = {
+      user_id: req.user.id,
+      generate_time: `${normalizedTime}:00`,
+      timezone,
+      is_active: true,
+    };
+
+    // Only set next_run_at if we got a valid value — never write null/invalid dates
+    if (nextRun) {
+      upsertData.next_run_at = nextRun;
+    }
 
     const { data: schedule, error } = await supabase
       .from('schedules')
-      .upsert({
-        user_id: req.user.id,
-        generate_time: `${generate_time}:00`,
-        timezone,
-        is_active: true,
-        next_run_at: nextRun
-      }, { onConflict: 'user_id' })
+      .upsert(upsertData, { onConflict: 'user_id' })
       .select()
       .single();
 
