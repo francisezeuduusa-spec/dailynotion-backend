@@ -2,9 +2,25 @@
 // Mounted with raw body parsing in index.js
 const express = require('express');
 const router = express.Router();
-const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
-const { createClient } = require('@supabase/supabase-js');
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
+
+// Lazy-load stripe only when needed
+let stripe = null;
+const getStripe = () => {
+  if (!stripe) {
+    stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+  }
+  return stripe;
+};
+
+// Lazy-load supabase only when needed (not at module load time)
+let supabase = null;
+const getSupabase = () => {
+  if (!supabase) {
+    const { createClient } = require('@supabase/supabase-js');
+    supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
+  }
+  return supabase;
+};
 
 // POST /api/billing/webhook
 router.post('/', async (req, res) => {
@@ -12,7 +28,7 @@ router.post('/', async (req, res) => {
   let event;
 
   try {
-    event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
+    event = getStripe().webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
   } catch (err) {
     console.error('Webhook signature error:', err.message);
     return res.status(400).json({ error: `Webhook Error: ${err.message}` });
@@ -24,12 +40,12 @@ router.post('/', async (req, res) => {
         const session = event.data.object;
         const { user_id, plan, interval, seats } = session.metadata;
 
-        await supabase
+        await getSupabase()
           .from('users')
           .update({ status: 'active' })
           .eq('id', user_id);
 
-        await supabase
+        await getSupabase()
           .from('subscriptions')
           .upsert({
             user_id,
@@ -48,14 +64,14 @@ router.post('/', async (req, res) => {
 
       case 'invoice.payment_failed': {
         const invoice = event.data.object;
-        const { data: sub } = await supabase
+        const { data: sub } = await getSupabase()
           .from('subscriptions')
           .select('user_id')
           .eq('stripe_subscription_id', invoice.subscription)
           .single();
 
         if (sub) {
-          await supabase
+          await getSupabase()
             .from('subscriptions')
             .update({ status: 'past_due' })
             .eq('stripe_subscription_id', invoice.subscription);
@@ -66,19 +82,19 @@ router.post('/', async (req, res) => {
 
       case 'customer.subscription.deleted': {
         const subscription = event.data.object;
-        await supabase
+        await getSupabase()
           .from('subscriptions')
           .update({ status: 'canceled' })
           .eq('stripe_subscription_id', subscription.id);
 
-        const { data: sub } = await supabase
+        const { data: sub } = await getSupabase()
           .from('subscriptions')
           .select('user_id')
           .eq('stripe_subscription_id', subscription.id)
           .single();
 
         if (sub) {
-          await supabase
+          await getSupabase()
             .from('users')
             .update({ status: 'canceled' })
             .eq('id', sub.user_id);
