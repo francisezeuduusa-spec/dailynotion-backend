@@ -15,6 +15,7 @@ const PRICE_MAP = {
 // GET /api/plans
 // Returns all available plans with features + pricing
 // Public route - no auth needed
+// UPDATED: v1.0.3 - New pricing structure
 // ─────────────────────────────────────────────
 router.get('/', (req, res) => {
   return res.json({
