@@ -1,8 +1,12 @@
 const express = require('express');
 const router = express.Router();
-const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const supabase = require('../db/supabase');
 const { requireAuth } = require('../middleware/auth');
+
+// Initialize stripe only if key is available
+const stripe = process.env.STRIPE_SECRET_KEY 
+  ? require('stripe')(process.env.STRIPE_SECRET_KEY) 
+  : null;
 
 const PRICE_MAP = {
   pro_monthly: process.env.STRIPE_PRO_MONTHLY_PRICE_ID,
@@ -15,7 +19,6 @@ const PRICE_MAP = {
 // GET /api/plans
 // Returns all available plans with features + pricing
 // Public route - no auth needed
-// UPDATED: v1.0.3 - New pricing structure
 // ─────────────────────────────────────────────
 router.get('/', (req, res) => {
   return res.json({
@@ -30,7 +33,7 @@ router.get('/', (req, res) => {
           'Manual journal generation (Generate Now button)',
           '1 pre-built template',
           'Pull from 1 database (Tasks)',
-          '7-day journal history',
+          '14-day journal history',
           'No scheduling',
           'No email notifications'
         ],
@@ -39,8 +42,8 @@ router.get('/', (req, res) => {
       {
         id: 'pro',
         name: 'Pro',
-        price_monthly: 5,
-        price_yearly: 45,
+        price_monthly: 10,
+        price_yearly: 100,
         description: 'For individuals who want full automation',
         features: [
           'Scheduled daily generation (choose your time)',
@@ -57,8 +60,8 @@ router.get('/', (req, res) => {
       {
         id: 'team',
         name: 'Team',
-        price_monthly: 15,
-        price_yearly: 160,
+        price_monthly: 29,
+        price_yearly: 290,
         description: 'For teams of up to 5 people',
         price_per_extra_seat_monthly: 5,
         price_per_extra_seat_yearly: 50,
@@ -140,6 +143,10 @@ router.post('/checkout', requireAuth, async (req, res) => {
     return res.status(400).json({ error: 'Invalid plan for checkout' });
   }
 
+  if (!stripe) {
+    return res.status(503).json({ error: 'Stripe not configured yet' });
+  }
+
   const priceKey = `${plan}_${interval}`;
   const priceId = PRICE_MAP[priceKey];
 
@@ -194,7 +201,119 @@ router.post('/checkout', requireAuth, async (req, res) => {
   }
 });
 
-module.exports = router;
+// ─────────────────────────────────────────────
+// POST /api/billing/webhook
+// Stripe webhook - handles payment confirmations
+// IMPORTANT: This route needs raw body (see index.js)
+// ─────────────────────────────────────────────
+const webhookHandler = async (req, res) => {
+  if (!stripe) {
+    return res.status(503).json({ error: 'Stripe not configured yet' });
+  }
+
+  const sig = req.headers['stripe-signature'];
+  let event;
+
+  try {
+    event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
+  } catch (err) {
+    console.error('Webhook signature error:', err.message);
+    return res.status(400).json({ error: `Webhook Error: ${err.message}` });
+  }
+
+  try {
+    switch (event.type) {
+      case 'checkout.session.completed': {
+        const session = event.data.object;
+        const { user_id, plan, interval, seats } = session.metadata;
+
+        // Activate the user
+        await supabase
+          .from('users')
+          .update({ status: 'active' })
+          .eq('id', user_id);
+
+        // Store subscription
+        await supabase
+          .from('subscriptions')
+          .upsert({
+            user_id,
+            plan,
+            billing_interval: interval,
+            stripe_customer_id: session.customer,
+            stripe_subscription_id: session.subscription,
+            stripe_price_id: session.metadata.price_id,
+            status: 'active',
+            seats: parseInt(seats) || 1
+          }, { onConflict: 'user_id' });
+
+        console.log(`✅ Payment complete for user ${user_id} — plan: ${plan}`);
+        break;
+      }
+
+      case 'invoice.payment_failed': {
+        const invoice = event.data.object;
+        const { data: sub } = await supabase
+          .from('subscriptions')
+          .select('user_id')
+          .eq('stripe_subscription_id', invoice.subscription)
+          .single();
+
+        if (sub) {
+          await supabase
+            .from('users')
+            .update({ status: 'suspended' })
+            .eq('id', sub.user_id);
+
+          await supabase
+            .from('subscriptions')
+            .update({ status: 'past_due' })
+            .eq('stripe_subscription_id', invoice.subscription);
+        }
+        break;
+      }
+
+      case 'customer.subscription.deleted': {
+        const subscription = event.data.object;
+        const { data: sub } = await supabase
+          .from('subscriptions')
+          .select('user_id')
+          .eq('stripe_subscription_id', subscription.id)
+          .single();
+
+        if (sub) {
+          // Downgrade to free instead of deleting
+          await supabase
+            .from('subscriptions')
+            .update({ plan: 'free', status: 'active', stripe_subscription_id: null })
+            .eq('stripe_subscription_id', subscription.id);
+        }
+        break;
+      }
+
+      case 'customer.subscription.updated': {
+        const subscription = event.data.object;
+        await supabase
+          .from('subscriptions')
+          .update({
+            status: subscription.status,
+            current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
+            current_period_end: new Date(subscription.current_period_end * 1000).toISOString()
+          })
+          .eq('stripe_subscription_id', subscription.id);
+        break;
+      }
+    }
+
+    return res.json({ received: true });
+  } catch (err) {
+    console.error('Webhook processing error:', err);
+    return res.status(500).json({ error: 'Webhook processing failed' });
+  }
+};
+
+// Export webhook separately for raw body handling in index.js
+router.webhook = webhookHandler;
 
 // ─────────────────────────────────────────────
 // GET /api/billing/subscription
@@ -219,6 +338,10 @@ router.get('/subscription', requireAuth, async (req, res) => {
 // Creates a Stripe customer portal session for managing billing
 // ─────────────────────────────────────────────
 router.post('/portal', requireAuth, async (req, res) => {
+  if (!stripe) {
+    return res.status(503).json({ error: 'Stripe not configured yet' });
+  }
+
   try {
     const { data: subscription } = await supabase
       .from('subscriptions')
