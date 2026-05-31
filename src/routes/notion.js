@@ -30,11 +30,11 @@ router.get('/callback', async (req, res) => {
   const { code, state: userId, error } = req.query;
 
   if (error) {
-    return res.redirect(`${process.env.FRONTEND_URL}/onboarding/connect-notion?error=notion_denied`);
+    return res.redirect(`${process.env.FRONTEND_URL}/#/onboarding/connect-notion?error=notion_denied`);
   }
 
   if (!code || !userId) {
-    return res.redirect(`${process.env.FRONTEND_URL}/onboarding/connect-notion?error=missing_params`);
+    return res.redirect(`${process.env.FRONTEND_URL}/#/onboarding/connect-notion?error=missing_params`);
   }
 
   try {
@@ -85,12 +85,12 @@ router.get('/callback', async (req, res) => {
       .eq('user_id', userId);
 
     return res.redirect(
-      `${process.env.FRONTEND_URL}/onboarding/select-databases?notion=connected`
+      `${process.env.FRONTEND_URL}/#/onboarding/select-databases?notion=connected`
     );
   } catch (err) {
     console.error('Notion OAuth error:', err.response?.data || err.message);
     return res.redirect(
-      `${process.env.FRONTEND_URL}/onboarding/connect-notion?error=oauth_failed`
+      `${process.env.FRONTEND_URL}/#/onboarding/connect-notion?error=oauth_failed`
     );
   }
 });
