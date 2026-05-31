@@ -26,7 +26,7 @@ const PORT = process.env.PORT || 3000;
 app.post(
   '/api/billing/webhook',
   express.raw({ type: 'application/json' }),
-  require('./routes/billing').webhook // handled inside billing.js
+  require('./routes/billing').webhookHandler
 );
 
 // ─────────────────────────────────────────────

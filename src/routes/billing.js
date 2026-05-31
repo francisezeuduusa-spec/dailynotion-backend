@@ -195,8 +195,39 @@ router.post('/checkout', requireAuth, async (req, res) => {
 });
 
 // ─────────────────────────────────────────────
-// POST /api/billing/webhook
 // Stripe webhook - handles payment confirmations
+// Exported separately because it needs raw body parsing
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+
+const webhookHandler = async (req, res) => {
+  const sig = req.headers['stripe-signature'];
+  let event;
+
+  try {
+    event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
+  } catch (err) {
+    console.error('Webhook signature verification failed:', err.message);
+    return res.status(400).send(`Webhook Error: ${err.message}`);
+  }
+
+  // Handle the event
+  switch (event.type) {
+    case 'checkout.session.completed':
+      const session = event.data.object;
+      await handleSubscriptionCreated(session);
+      break;
+    case 'customer.subscription.deleted':
+      const subscription = event.data.object;
+      await handleSubscriptionCanceled(subscription);
+      break;
+    default:
+      console.log(`Unhandled event type ${event.type}`);
+  }
+
+  res.json({ received: true });
+};
+
+// POST /api/billing/webhook
 // IMPORTANT: This route needs raw body (see index.js)
 // ─────────────────────────────────────────────
 router.post('/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
@@ -347,4 +378,4 @@ router.post('/portal', requireAuth, async (req, res) => {
   }
 });
 
-module.exports = router;
+module.exports = { router, webhookHandler };
