@@ -29,7 +29,7 @@ router.get('/', (req, res) => {
           'Manual journal generation (Generate Now button)',
           '1 pre-built template',
           'Pull from 1 database (Tasks)',
-          '30-day journal history',
+          '7-day journal history',
           'No scheduling',
           'No email notifications'
         ],
@@ -38,8 +38,8 @@ router.get('/', (req, res) => {
       {
         id: 'pro',
         name: 'Pro',
-        price_monthly: 10,
-        price_yearly: 100,
+        price_monthly: 5,
+        price_yearly: 45,
         description: 'For individuals who want full automation',
         features: [
           'Scheduled daily generation (choose your time)',
@@ -56,8 +56,8 @@ router.get('/', (req, res) => {
       {
         id: 'team',
         name: 'Team',
-        price_monthly: 29,
-        price_yearly: 290,
+        price_monthly: 15,
+        price_yearly: 160,
         description: 'For teams of up to 5 people',
         price_per_extra_seat_monthly: 5,
         price_per_extra_seat_yearly: 50,
