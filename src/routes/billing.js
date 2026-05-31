@@ -181,8 +181,8 @@ router.post('/checkout', requireAuth, async (req, res) => {
       payment_method_types: ['card'],
       line_items: lineItems,
       mode: 'subscription',
-      success_url: `${process.env.FRONTEND_URL}/onboarding/connect-notion?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${process.env.FRONTEND_URL}/select-plan`,
+      success_url: `${process.env.FRONTEND_URL}/#/onboarding/connect-notion?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${process.env.FRONTEND_URL}/#/select-plan`,
       metadata: {
         user_id: req.user.id,
         plan,
@@ -355,7 +355,7 @@ router.post('/portal', requireAuth, async (req, res) => {
 
     const session = await stripe.billingPortal.sessions.create({
       customer: subscription.stripe_customer_id,
-      return_url: `${process.env.FRONTEND_URL}/dashboard/billing`
+      return_url: `${process.env.FRONTEND_URL}/#/dashboard/billing`
     });
 
     return res.json({ portalUrl: session.url });
