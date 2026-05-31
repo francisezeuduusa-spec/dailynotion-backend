@@ -164,7 +164,7 @@ router.get('/google/callback', async (req, res) => {
     });
 
     return res.redirect(
-      `${process.env.FRONTEND_URL}/auth/google/success?${params.toString()}`
+      `${process.env.FRONTEND_URL}/#/auth/google/success?${params.toString()}`
     );
   } catch (err) {
     console.error('Google OAuth error:', err.response?.data || err.message);
