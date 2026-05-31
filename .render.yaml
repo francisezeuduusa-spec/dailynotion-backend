@@ -1,4 +1,6 @@
 # Render Blueprints - Auto-deploy environment variables
+# NOTE: Sensitive values should be set manually in Render Dashboard
+# or use Render's secret sync feature (sync: false)
 services:
   - type: web
     name: dailynotion-backend
@@ -10,7 +12,7 @@ services:
       - key: NODE_ENV
         value: production
       - key: PORT
-        value: 3000
+        value: "3000"
       - key: FRONTEND_URL
         value: https://dailynotion-frontend.onrender.com
       - key: JWT_SECRET
@@ -19,33 +21,5 @@ services:
         generateValue: true
       - key: SUPABASE_URL
         value: https://rdwkzqzqhjenuorhxxaw.supabase.co
-      - key: SUPABASE_SERVICE_ROLE_KEY
-        sync: false
-      - key: GOOGLE_CLIENT_ID
-        value: 4277758877-ogrvamvqghtuqnno2r6kvdb0hqf11huj.apps.googleusercontent.com
-      - key: GOOGLE_CLIENT_SECRET
-        sync: false
       - key: GOOGLE_REDIRECT_URI
         value: https://dailynotion-backend.onrender.com/api/auth/google/callback
-      - key: NOTION_CLIENT_ID
-        value: placeholder_notion_client_id
-      - key: NOTION_CLIENT_SECRET
-        sync: false
-      - key: NOTION_REDIRECT_URI
-        value: https://dailynotion-backend.onrender.com/api/notion/callback
-      - key: RESEND_API_KEY
-        sync: false
-      - key: EMAIL_FROM
-        value: noreply@dailynotion.app
-      - key: STRIPE_SECRET_KEY
-        sync: false
-      - key: STRIPE_WEBHOOK_SECRET
-        sync: false
-      - key: STRIPE_PRO_MONTHLY_PRICE_ID
-        value: price_placeholder
-      - key: STRIPE_PRO_YEARLY_PRICE_ID
-        value: price_placeholder
-      - key: STRIPE_TEAM_MONTHLY_PRICE_ID
-        value: price_placeholder
-      - key: STRIPE_TEAM_YEARLY_PRICE_ID
-        value: price_placeholder
