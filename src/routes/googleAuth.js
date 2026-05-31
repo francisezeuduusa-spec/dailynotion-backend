@@ -35,7 +35,7 @@ router.get('/google/callback', async (req, res) => {
 
   if (error || !code) {
     return res.redirect(
-      `${process.env.FRONTEND_URL}/login?error=google_denied`
+      `${process.env.FRONTEND_URL}/#/login?error=google_denied`
     );
   }
 
@@ -169,7 +169,7 @@ router.get('/google/callback', async (req, res) => {
   } catch (err) {
     console.error('Google OAuth error:', err.response?.data || err.message);
     return res.redirect(
-      `${process.env.FRONTEND_URL}/login?error=google_failed`
+      `${process.env.FRONTEND_URL}/#/login?error=google_failed`
     );
   }
 });
